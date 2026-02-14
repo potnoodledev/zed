@@ -193,7 +193,8 @@ impl TestServer {
                     false,
                     NewUserParams {
                         github_login: name.into(),
-                        github_user_id,
+                        github_user_id: Some(github_user_id),
+                        affine_user_id: None,
                     },
                 )
                 .await

@@ -923,8 +923,16 @@ impl Client {
         {
             Ok(valid) => Ok(valid),
             Err(err) => {
-                self.set_status(Status::AuthenticationError, cx);
-                Err(anyhow!("failed to validate credentials: {}", err))
+                // When the cloud service is unavailable (e.g. self-hosted setups),
+                // treat stored credentials as potentially valid rather than failing.
+                // They will be verified when connecting to the collab server.
+                if ZED_SERVER_URL.is_some() {
+                    log::warn!("cloud validation unavailable, accepting stored credentials");
+                    Ok(true)
+                } else {
+                    self.set_status(Status::AuthenticationError, cx);
+                    Err(anyhow!("failed to validate credentials: {}", err))
+                }
             }
         }
     }
@@ -981,28 +989,55 @@ impl Client {
 
         let credentials = self.sign_in(try_provider, cx).await?;
 
-        self.connect_to_cloud(cx).await.log_err();
+        let cloud_connected = self.connect_to_cloud(cx).await.is_ok();
 
-        cx.update(move |cx| {
-            cx.spawn({
-                let client = self.clone();
-                async move |cx| {
-                    let is_staff = is_staff_rx.await?;
-                    if is_staff {
+        // When the cloud service is available, wait for feature flags to
+        // determine if the user is staff before connecting to collab.
+        // When it's unavailable (self-hosted setups), connect directly.
+        if cloud_connected {
+            cx.update(move |cx| {
+                cx.spawn({
+                    let client = self.clone();
+                    async move |cx| {
+                        let is_staff = is_staff_rx.await?;
+                        if is_staff {
+                            match client.connect_with_credentials(credentials, cx).await {
+                                ConnectionResult::Timeout => {
+                                    Err(anyhow!("connection timed out"))
+                                }
+                                ConnectionResult::ConnectionReset => {
+                                    Err(anyhow!("connection reset"))
+                                }
+                                ConnectionResult::Result(result) => {
+                                    result.context("client auth and connect")
+                                }
+                            }
+                        } else {
+                            Ok(())
+                        }
+                    }
+                })
+                .detach_and_log_err(cx);
+            });
+        } else {
+            cx.update(move |cx| {
+                cx.spawn({
+                    let client = self.clone();
+                    async move |cx| {
                         match client.connect_with_credentials(credentials, cx).await {
                             ConnectionResult::Timeout => Err(anyhow!("connection timed out")),
-                            ConnectionResult::ConnectionReset => Err(anyhow!("connection reset")),
+                            ConnectionResult::ConnectionReset => {
+                                Err(anyhow!("connection reset"))
+                            }
                             ConnectionResult::Result(result) => {
                                 result.context("client auth and connect")
                             }
                         }
-                    } else {
-                        Ok(())
                     }
-                }
-            })
-            .detach_and_log_err(cx);
-        });
+                })
+                .detach_and_log_err(cx);
+            });
+        }
 
         Ok(())
     }
@@ -1226,19 +1261,23 @@ impl Client {
             }
 
             let response = http.get(&url, Default::default(), false).await?;
-            anyhow::ensure!(
-                response.status().is_redirection(),
-                "unexpected /rpc response status {}",
-                response.status()
-            );
-            let collab_url = response
-                .headers()
-                .get("Location")
-                .context("missing location header in /rpc response")?
-                .to_str()
-                .map_err(EstablishConnectionError::other)?
-                .to_string();
-            Url::parse(&collab_url).with_context(|| format!("parsing collab rpc url {collab_url}"))
+            if response.status().is_redirection() {
+                let collab_url = response
+                    .headers()
+                    .get("Location")
+                    .context("missing location header in /rpc response")?
+                    .to_str()
+                    .map_err(EstablishConnectionError::other)?
+                    .to_string();
+                Url::parse(&collab_url)
+                    .with_context(|| format!("parsing collab rpc url {collab_url}"))
+            } else if response.status() == StatusCode::UNAUTHORIZED {
+                // When the server responds with 401, it means this server is the
+                // collab server itself (no proxy/redirect). Use the URL directly.
+                Url::parse(&url).context("parsing rpc url")
+            } else {
+                anyhow::bail!("unexpected /rpc response status {}", response.status())
+            }
         }
     }
 

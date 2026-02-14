@@ -721,12 +721,17 @@ impl Database {
             .into_iter()
             .map(|(member, user)| {
                 if let Some(user) = user {
+                    let avatar_url = if let Some(url) = &user.avatar_url {
+                        url.clone()
+                    } else {
+                        format!(
+                            "https://github.com/{}.png?size=128",
+                            user.github_login
+                        )
+                    };
                     users.push(proto::User {
                         id: user.id.to_proto(),
-                        avatar_url: format!(
-                            "https://avatars.githubusercontent.com/u/{}?s=128&v=4",
-                            user.github_user_id
-                        ),
+                        avatar_url,
                         github_login: user.github_login,
                         name: user.name,
                     })

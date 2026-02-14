@@ -451,12 +451,14 @@ CREATE TABLE public.users (
     email_address character varying(255) DEFAULT NULL::character varying,
     connected_once boolean DEFAULT false NOT NULL,
     created_at timestamp without time zone DEFAULT now() NOT NULL,
-    github_user_id integer NOT NULL,
+    github_user_id integer,
     metrics_id uuid DEFAULT gen_random_uuid() NOT NULL,
     accepted_tos_at timestamp without time zone,
     github_user_created_at timestamp without time zone,
     custom_llm_monthly_allowance_in_cents integer,
-    name text
+    name text,
+    affine_user_id character varying(255),
+    avatar_url character varying(512)
 );
 
 CREATE SEQUENCE public.users_id_seq
@@ -771,6 +773,8 @@ CREATE INDEX trigram_index_users_on_github_login ON public.users USING gin (gith
 CREATE UNIQUE INDEX uix_channels_parent_path_name ON public.channels USING btree (parent_path, name) WHERE ((parent_path IS NOT NULL) AND (parent_path <> ''::text));
 
 CREATE UNIQUE INDEX uix_users_on_github_user_id ON public.users USING btree (github_user_id);
+
+CREATE UNIQUE INDEX idx_users_affine_user_id ON public.users USING btree (affine_user_id) WHERE affine_user_id IS NOT NULL;
 
 ALTER TABLE ONLY public.access_tokens
     ADD CONSTRAINT access_tokens_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id) ON DELETE CASCADE;

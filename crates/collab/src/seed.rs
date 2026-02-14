@@ -59,7 +59,8 @@ pub async fn seed(config: &Config, db: &Database, force: bool) -> anyhow::Result
                 true,
                 NewUserParams {
                     github_login: user.login,
-                    github_user_id: user.id,
+                    github_user_id: Some(user.id),
+                    affine_user_id: None,
                 },
             )
             .await

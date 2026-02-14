@@ -13,25 +13,29 @@ impl Database {
     ) -> Result<NewUserResult> {
         self.transaction(|tx| async {
             let tx = tx;
-            let user = user::Entity::insert(user::ActiveModel {
+            let mut insert = user::Entity::insert(user::ActiveModel {
                 email_address: ActiveValue::set(Some(email_address.into())),
                 name: ActiveValue::set(name.map(|s| s.into())),
                 github_login: ActiveValue::set(params.github_login.clone()),
                 github_user_id: ActiveValue::set(params.github_user_id),
                 admin: ActiveValue::set(admin),
+                affine_user_id: ActiveValue::set(params.affine_user_id.clone()),
                 ..Default::default()
-            })
-            .on_conflict(
-                OnConflict::column(user::Column::GithubUserId)
-                    .update_columns([
-                        user::Column::Admin,
-                        user::Column::EmailAddress,
-                        user::Column::GithubLogin,
-                    ])
-                    .to_owned(),
-            )
-            .exec_with_returning(&*tx)
-            .await?;
+            });
+
+            if params.github_user_id.is_some() {
+                insert = insert.on_conflict(
+                    OnConflict::column(user::Column::GithubUserId)
+                        .update_columns([
+                            user::Column::Admin,
+                            user::Column::EmailAddress,
+                            user::Column::GithubLogin,
+                        ])
+                        .to_owned(),
+                );
+            }
+
+            let user = insert.exec_with_returning(&*tx).await?;
 
             Ok(NewUserResult { user_id: user.id })
         })
@@ -126,7 +130,7 @@ impl Database {
                 email_address: ActiveValue::set(github_email.map(|email| email.into())),
                 name: ActiveValue::set(github_name.map(|name| name.into())),
                 github_login: ActiveValue::set(github_login.into()),
-                github_user_id: ActiveValue::set(github_user_id),
+                github_user_id: ActiveValue::set(Some(github_user_id)),
                 github_user_created_at: ActiveValue::set(Some(github_user_created_at)),
                 admin: ActiveValue::set(false),
                 ..Default::default()
@@ -206,7 +210,72 @@ impl Database {
         .await
     }
 
-    /// Find users where github_login ILIKE name_query.
+    pub async fn get_user_by_affine_id(&self, affine_user_id: &str) -> Result<Option<User>> {
+        self.transaction(|tx| async move {
+            Ok(user::Entity::find()
+                .filter(user::Column::AffineUserId.eq(affine_user_id))
+                .one(&*tx)
+                .await?)
+        })
+        .await
+    }
+
+    pub async fn get_user_by_email(&self, email: &str) -> Result<Option<User>> {
+        self.transaction(|tx| async move {
+            Ok(user::Entity::find()
+                .filter(user::Column::EmailAddress.eq(email))
+                .one(&*tx)
+                .await?)
+        })
+        .await
+    }
+
+    pub async fn update_or_create_user_by_affine_account(
+        &self,
+        affine_user_id: &str,
+        email: &str,
+        name: Option<&str>,
+        avatar_url: Option<&str>,
+    ) -> Result<User> {
+        self.transaction(|tx| async move {
+            if let Some(existing_user) = user::Entity::find()
+                .filter(user::Column::AffineUserId.eq(affine_user_id))
+                .one(&*tx)
+                .await?
+            {
+                let mut existing_user = existing_user.into_active_model();
+                existing_user.email_address = ActiveValue::set(Some(email.into()));
+                if let Some(name) = name {
+                    existing_user.name = ActiveValue::set(Some(name.into()));
+                }
+                if let Some(avatar_url) = avatar_url {
+                    existing_user.avatar_url = ActiveValue::set(Some(avatar_url.into()));
+                }
+                Ok(existing_user.update(&*tx).await?)
+            } else {
+                let display_name = name
+                    .map(|n| n.to_string())
+                    .unwrap_or_else(|| email.split('@').next().unwrap_or("user").to_string());
+                let github_login = format!("affine:{affine_user_id}");
+                let user = user::Entity::insert(user::ActiveModel {
+                    email_address: ActiveValue::set(Some(email.into())),
+                    name: ActiveValue::set(Some(display_name)),
+                    github_login: ActiveValue::set(github_login),
+                    github_user_id: ActiveValue::set(None),
+                    affine_user_id: ActiveValue::set(Some(affine_user_id.into())),
+                    avatar_url: ActiveValue::set(avatar_url.map(|u| u.into())),
+                    admin: ActiveValue::set(false),
+                    ..Default::default()
+                })
+                .exec_with_returning(&*tx)
+                .await?;
+                Ok(user)
+            }
+        })
+        .await
+    }
+
+    /// Find users where github_login or name ILIKE name_query.
     pub async fn fuzzy_search_users(&self, name_query: &str, limit: u32) -> Result<Vec<User>> {
         self.transaction(|tx| async {
             let tx = tx;
@@ -214,7 +283,7 @@ impl Database {
             let query = "
                 SELECT users.*
                 FROM users
-                WHERE github_login ILIKE $1
+                WHERE github_login ILIKE $1 OR name ILIKE $1
                 ORDER BY github_login <-> $2
                 LIMIT $3
             ";

@@ -18,7 +18,8 @@ async fn test_channel_buffers(db: &Arc<Database>) {
             false,
             NewUserParams {
                 github_login: "user_a".into(),
-                github_user_id: 101,
+                github_user_id: Some(101),
+                affine_user_id: None,
             },
         )
         .await
@@ -31,7 +32,8 @@ async fn test_channel_buffers(db: &Arc<Database>) {
             false,
             NewUserParams {
                 github_login: "user_b".into(),
-                github_user_id: 102,
+                github_user_id: Some(102),
+                affine_user_id: None,
             },
         )
         .await
@@ -46,7 +48,8 @@ async fn test_channel_buffers(db: &Arc<Database>) {
             false,
             NewUserParams {
                 github_login: "user_c".into(),
-                github_user_id: 103,
+                github_user_id: Some(103),
+                affine_user_id: None,
             },
         )
         .await
@@ -193,7 +196,8 @@ async fn test_channel_buffers_last_operations(db: &Database) {
             false,
             NewUserParams {
                 github_login: "user_a".into(),
-                github_user_id: 101,
+                github_user_id: Some(101),
+                affine_user_id: None,
             },
         )
         .await
@@ -206,7 +210,8 @@ async fn test_channel_buffers_last_operations(db: &Database) {
             false,
             NewUserParams {
                 github_login: "user_b".into(),
-                github_user_id: 102,
+                github_user_id: Some(102),
+                affine_user_id: None,
             },
         )
         .await

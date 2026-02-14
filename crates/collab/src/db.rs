@@ -370,7 +370,8 @@ pub struct WaitlistSummary {
 #[derive(Debug, Serialize, Deserialize)]
 pub struct NewUserParams {
     pub github_login: String,
-    pub github_user_id: i32,
+    pub github_user_id: Option<i32>,
+    pub affine_user_id: Option<String>,
 }
 
 /// The result of creating a new user.

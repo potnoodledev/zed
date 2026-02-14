@@ -2564,6 +2564,14 @@ async fn update_followers(request: proto::UpdateFollowers, session: MessageConte
     Ok(())
 }
 
+fn user_avatar_url(user: &db::user::Model) -> String {
+    if let Some(url) = &user.avatar_url {
+        url.clone()
+    } else {
+        format!("https://github.com/{}.png?size=128", user.github_login)
+    }
+}
+
 /// Get public data about users.
 async fn get_users(
     request: proto::GetUsers,
@@ -2581,18 +2589,21 @@ async fn get_users(
         .get_users_by_ids(user_ids)
         .await?
         .into_iter()
-        .map(|user| proto::User {
-            id: user.id.to_proto(),
-            avatar_url: format!("https://github.com/{}.png?size=128", user.github_login),
-            github_login: user.github_login,
-            name: user.name,
+        .map(|user| {
+            let avatar_url = user_avatar_url(&user);
+            proto::User {
+                id: user.id.to_proto(),
+                avatar_url,
+                github_login: user.github_login,
+                name: user.name,
+            }
         })
         .collect();
     response.send(proto::UsersResponse { users })?;
     Ok(())
 }
 
-/// Search for users (to invite) buy Github login
+/// Search for users (to invite) by login or name
 async fn fuzzy_search_users(
     request: proto::FuzzySearchUsers,
     response: Response<proto::FuzzySearchUsers>,
@@ -2613,11 +2624,14 @@ async fn fuzzy_search_users(
     let users = users
         .into_iter()
         .filter(|user| user.id != session.user_id())
-        .map(|user| proto::User {
-            id: user.id.to_proto(),
-            avatar_url: format!("https://github.com/{}.png?size=128", user.github_login),
-            github_login: user.github_login,
-            name: user.name,
+        .map(|user| {
+            let avatar_url = user_avatar_url(&user);
+            proto::User {
+                id: user.id.to_proto(),
+                avatar_url,
+                github_login: user.github_login,
+                name: user.name,
+            }
         })
         .collect();
     response.send(proto::UsersResponse { users })?;

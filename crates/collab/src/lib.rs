@@ -134,6 +134,11 @@ pub struct Config {
     pub kinesis_secret_key: Option<String>,
     pub zed_environment: Arc<str>,
     pub zed_client_checksum_seed: Option<String>,
+    pub github_client_id: Option<String>,
+    pub github_client_secret: Option<String>,
+    pub affine_url: Option<String>,
+    pub affine_public_url: Option<String>,
+    pub self_url: Option<String>,
 }
 
 impl Config {
@@ -148,6 +153,12 @@ impl Config {
             "staging" => "https://staging.zed.dev",
             _ => "https://zed.dev",
         }
+    }
+
+    pub fn self_url(&self) -> String {
+        self.self_url
+            .clone()
+            .unwrap_or_else(|| format!("http://localhost:{}", self.http_port))
     }
 
     #[cfg(feature = "test-support")]
@@ -174,6 +185,11 @@ impl Config {
             kinesis_access_key: None,
             kinesis_secret_key: None,
             kinesis_stream: None,
+            github_client_id: None,
+            github_client_secret: None,
+            affine_url: None,
+            affine_public_url: None,
+            self_url: None,
         }
     }
 }

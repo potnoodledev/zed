@@ -24,7 +24,8 @@ async fn test_get_users(db: &Arc<Database>) {
                 false,
                 NewUserParams {
                     github_login: format!("user{i}"),
-                    github_user_id: i,
+                    github_user_id: Some(i),
+                    affine_user_id: None,
                 },
             )
             .await
@@ -86,7 +87,8 @@ async fn test_update_or_create_user_by_github_account(db: &Arc<Database>) {
         false,
         NewUserParams {
             github_login: "login1".into(),
-            github_user_id: 101,
+            github_user_id: Some(101),
+            affine_user_id: None,
         },
     )
     .await
@@ -98,7 +100,8 @@ async fn test_update_or_create_user_by_github_account(db: &Arc<Database>) {
             false,
             NewUserParams {
                 github_login: "login2".into(),
-                github_user_id: 102,
+                github_user_id: Some(102),
+                affine_user_id: None,
             },
         )
         .await
@@ -150,7 +153,8 @@ async fn test_create_access_tokens(db: &Arc<Database>) {
             false,
             NewUserParams {
                 github_login: "u1".into(),
-                github_user_id: 1,
+                github_user_id: Some(1),
+                affine_user_id: None,
             },
         )
         .await
@@ -163,7 +167,8 @@ async fn test_create_access_tokens(db: &Arc<Database>) {
             false,
             NewUserParams {
                 github_login: "u2".into(),
-                github_user_id: 2,
+                github_user_id: Some(2),
+                affine_user_id: None,
             },
         )
         .await
@@ -315,7 +320,8 @@ async fn test_add_contacts(db: &Arc<Database>) {
                 false,
                 NewUserParams {
                     github_login: format!("user{i}"),
-                    github_user_id: i,
+                    github_user_id: Some(i),
+                    affine_user_id: None,
                 },
             )
             .await
@@ -475,7 +481,8 @@ async fn test_project_count(db: &Arc<Database>) {
             true,
             NewUserParams {
                 github_login: "admin".into(),
-                github_user_id: 0,
+                github_user_id: Some(0),
+                affine_user_id: None,
             },
         )
         .await
@@ -487,7 +494,8 @@ async fn test_project_count(db: &Arc<Database>) {
             false,
             NewUserParams {
                 github_login: "user".into(),
-                github_user_id: 1,
+                github_user_id: Some(1),
+                affine_user_id: None,
             },
         )
         .await
@@ -569,7 +577,8 @@ async fn test_fuzzy_search_users(cx: &mut gpui::TestAppContext) {
             false,
             NewUserParams {
                 github_login: github_login.into(),
-                github_user_id: i as i32,
+                github_user_id: Some(i as i32),
+                affine_user_id: None,
             },
         )
         .await

@@ -76,7 +76,8 @@ mod auth_token_tests {
                 false,
                 NewUserParams {
                     github_login: "example".into(),
-                    github_user_id: 1,
+                    github_user_id: Some(1),
+                    affine_user_id: None,
                 },
             )
             .await

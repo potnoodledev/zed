@@ -217,7 +217,7 @@ impl UserStore {
                                     .await
                                     .log_err();
 
-                                let current_user_and_response = if let Some(response) = response {
+                                if let Some(response) = response {
                                     let user = Arc::new(User {
                                         id: user_id,
                                         github_login: response.user.github_login.clone().into(),
@@ -225,31 +225,32 @@ impl UserStore {
                                         name: response.user.name.clone(),
                                     });
 
-                                    Some((user, response))
-                                } else {
-                                    None
-                                };
-                                current_user_tx
-                                    .send(
-                                        current_user_and_response
-                                            .as_ref()
-                                            .map(|(user, _)| user.clone()),
-                                    )
-                                    .await
-                                    .ok();
+                                    current_user_tx
+                                        .send(Some(user.clone()))
+                                        .await
+                                        .ok();
 
-                                cx.update(|cx| {
-                                    if let Some((user, response)) = current_user_and_response {
+                                    cx.update(|cx| {
                                         this.update(cx, |this, cx| {
                                             this.by_github_login
                                                 .insert(user.github_login.clone(), user_id);
                                             this.users.insert(user_id, user);
                                             this.update_authenticated_user(response, cx)
                                         })
-                                    } else {
-                                        anyhow::Ok(())
+                                    })?;
+                                } else if matches!(status, Status::Connected { .. }) {
+                                    // Cloud service unavailable (self-hosted). Fetch
+                                    // user info from the collab server via RPC instead.
+                                    let user = this
+                                        .update(cx, |this, cx| this.get_users(vec![user_id], cx))?
+                                        .await
+                                        .log_err()
+                                        .and_then(|users| users.into_iter().next());
+
+                                    if let Some(user) = user {
+                                        current_user_tx.send(Some(user)).await.ok();
                                     }
-                                })?;
+                                }
 
                                 this.update(cx, |_, cx| cx.notify())?;
                             }

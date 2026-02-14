@@ -270,7 +270,8 @@ async fn test_channel_renames(db: &Arc<Database>) {
             false,
             NewUserParams {
                 github_login: "user1".into(),
-                github_user_id: 5,
+                github_user_id: Some(5),
+                affine_user_id: None,
             },
         )
         .await
@@ -284,7 +285,8 @@ async fn test_channel_renames(db: &Arc<Database>) {
             false,
             NewUserParams {
                 github_login: "user2".into(),
-                github_user_id: 6,
+                github_user_id: Some(6),
+                affine_user_id: None,
             },
         )
         .await
@@ -321,7 +323,8 @@ async fn test_db_channel_moving(db: &Arc<Database>) {
             false,
             NewUserParams {
                 github_login: "user1".into(),
-                github_user_id: 5,
+                github_user_id: Some(5),
+                affine_user_id: None,
             },
         )
         .await
@@ -411,7 +414,8 @@ async fn test_channel_reordering(db: &Arc<Database>) {
             false,
             NewUserParams {
                 github_login: "admin".into(),
-                github_user_id: 1,
+                github_user_id: Some(1),
+                affine_user_id: None,
             },
         )
         .await
@@ -425,7 +429,8 @@ async fn test_channel_reordering(db: &Arc<Database>) {
             false,
             NewUserParams {
                 github_login: "user".into(),
-                github_user_id: 2,
+                github_user_id: Some(2),
+                affine_user_id: None,
             },
         )
         .await
@@ -606,7 +611,8 @@ async fn test_db_channel_moving_bugs(db: &Arc<Database>) {
             false,
             NewUserParams {
                 github_login: "user1".into(),
-                github_user_id: 5,
+                github_user_id: Some(5),
+                affine_user_id: None,
             },
         )
         .await

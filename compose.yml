@@ -93,11 +93,25 @@ services:
       LIVEKIT_SERVER: http://livekit:7880
       LIVEKIT_KEY: devkey
       LIVEKIT_SECRET: secret
+      GITHUB_CLIENT_ID: ${GITHUB_CLIENT_ID:-}
+      GITHUB_CLIENT_SECRET: ${GITHUB_CLIENT_SECRET:-}
+      AFFINE_URL: ${AFFINE_URL:-http://mock-affine:3010}
+      AFFINE_PUBLIC_URL: ${AFFINE_PUBLIC_URL:-http://localhost:3011}
+      SELF_URL: ${SELF_URL:-http://localhost:8080}
       RUST_LOG: info
     volumes:
       - ./crates/collab/seed.default.json:/app/seed.default.json:ro
       - ./crates/collab/seed:/app/seed:ro
     command: ["serve", "all"]
+
+  mock-affine:
+    image: python:3.12-slim
+    profiles: [collab-server]
+    ports:
+      - "3011:3010"
+    volumes:
+      - ./mock_affine_server.py:/app/mock_affine_server.py:ro
+    command: ["python", "/app/mock_affine_server.py"]
 
 volumes:
   postgres_data:

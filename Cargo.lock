@@ -3322,6 +3322,7 @@ dependencies = [
  "tracing",
  "tracing-subscriber",
  "unindent",
+ "urlencoding",
  "util",
  "uuid",
  "workspace",

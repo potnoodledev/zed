@@ -96,6 +96,7 @@ async fn main() -> Result<()> {
 
                     app = app
                         .merge(collab::api::routes(rpc_server.clone()))
+                        .merge(collab::api::public_routes())
                         .merge(collab::rpc::routes(rpc_server.clone()));
 
                     on_shutdown = Some(Box::new(move || rpc_server.teardown()));

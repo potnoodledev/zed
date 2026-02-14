@@ -214,7 +214,8 @@ async fn new_test_user(db: &Arc<Database>, email: &str) -> UserId {
         false,
         NewUserParams {
             github_login: email[0..email.find('@').unwrap()].to_string(),
-            github_user_id: GITHUB_USER_ID.fetch_add(1, SeqCst),
+            github_user_id: Some(GITHUB_USER_ID.fetch_add(1, SeqCst)),
+            affine_user_id: None,
         },
     )
     .await
