@@ -90,6 +90,10 @@ pub fn routes(rpc_server: Arc<rpc::Server>) -> Router<(), Body> {
     Router::new()
         .route("/users/:id/access_tokens", post(create_access_token))
         .route("/rpc_server_snapshot", get(get_rpc_server_snapshot))
+        .route(
+            "/internal/users/impersonate",
+            post(impersonate_user),
+        )
         .layer(
             ServiceBuilder::new()
                 .layer(Extension(rpc_server))
@@ -98,7 +102,7 @@ pub fn routes(rpc_server: Arc<rpc::Server>) -> Router<(), Body> {
 }
 
 pub async fn validate_api_token<B>(req: Request<B>, next: Next<B>) -> impl IntoResponse {
-    let token = req
+    let header_value = req
         .headers()
         .get(http::header::AUTHORIZATION)
         .and_then(|header| header.to_str().ok())
@@ -107,8 +111,11 @@ pub async fn validate_api_token<B>(req: Request<B>, next: Next<B>) -> impl IntoR
                 StatusCode::BAD_REQUEST,
                 "missing authorization header".to_string(),
             )
-        })?
+        })?;
+
+    let token = header_value
         .strip_prefix("token ")
+        .or_else(|| header_value.strip_prefix("Bearer "))
         .ok_or_else(|| {
             Error::http(
                 StatusCode::BAD_REQUEST,
@@ -184,5 +191,40 @@ async fn create_access_token(
     Ok(Json(CreateAccessTokenResponse {
         user_id: impersonated_user_id.unwrap_or(user_id),
         encrypted_access_token,
+    }))
+}
+
+#[derive(Deserialize)]
+struct ImpersonateUserRequest {
+    github_login: String,
+}
+
+#[derive(Serialize)]
+struct ImpersonateUserResponse {
+    user_id: u64,
+    access_token: String,
+}
+
+async fn impersonate_user(
+    Extension(app): Extension<Arc<AppState>>,
+    Json(request): Json<ImpersonateUserRequest>,
+) -> Result<Json<ImpersonateUserResponse>> {
+    let user = app
+        .db
+        .get_user_by_github_login(&request.github_login)
+        .await?
+        .ok_or_else(|| {
+            Error::http(
+                StatusCode::NOT_FOUND,
+                format!("user {} not found", request.github_login),
+            )
+        })?;
+
+    let access_token =
+        auth::create_access_token(app.db.as_ref(), user.id, None).await?;
+
+    Ok(Json(ImpersonateUserResponse {
+        user_id: user.id.0 as u64,
+        access_token,
     }))
 }

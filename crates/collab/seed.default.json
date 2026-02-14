@@ -27,7 +27,8 @@
     "P1n3appl3",
     "mslzed",
     "franciskafyi",
-    "katie-z-geer"
+    "katie-z-geer",
+    "polats"
   ],
-  "channels": ["zed"]
+  "channels": ["zed", "local-test"]
 }

@@ -2,6 +2,7 @@ services:
   blob_store:
     image: quay.io/minio/minio
     container_name: blob_store
+    hostname: blobstore
     command: server /data
     ports:
       - 9000:9000
@@ -14,6 +15,7 @@ services:
   livekit_server:
     image: docker.io/livekit/livekit-server
     container_name: livekit_server
+    hostname: livekit
     entrypoint: /livekit-server --config /livekit.yaml
     ports:
       - 7880:7880
@@ -21,3 +23,81 @@ services:
       - 7882:7882/udp
     volumes:
       - ./livekit.yaml:/livekit.yaml
+
+  # Full collab server stack — start with: docker compose --profile collab-server up --build
+  postgres:
+    image: postgres:16-bookworm
+    profiles: [collab-server]
+    environment:
+      POSTGRES_DB: zed
+      POSTGRES_HOST_AUTH_METHOD: trust
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d zed"]
+      interval: 2s
+      timeout: 5s
+      retries: 30
+
+  createbuckets:
+    image: minio/mc
+    profiles: [collab-server]
+    depends_on:
+      - blob_store
+    entrypoint: >
+      /bin/sh -c "
+      until mc alias set minio http://blobstore:9000 the-blob-store-access-key the-blob-store-secret-key; do
+        sleep 1;
+      done;
+      mc mb --ignore-existing minio/the-extensions-bucket;
+      mc mb --ignore-existing minio/zed-crash-reports;
+      "
+
+  migrate:
+    image: postgres:16-bookworm
+    profiles: [collab-server]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - ./crates/collab/migrations/20251208000000_test_schema.sql:/schema.sql:ro
+    entrypoint: ["psql", "postgres://postgres@postgres/zed", "-f", "/schema.sql"]
+
+  collab:
+    build:
+      context: .
+      dockerfile: Dockerfile-collab
+    profiles: [collab-server]
+    depends_on:
+      postgres:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+      createbuckets:
+        condition: service_completed_successfully
+    ports:
+      - "8080:8080"
+    environment:
+      DATABASE_URL: postgres://postgres@postgres/zed
+      DATABASE_MAX_CONNECTIONS: 5
+      HTTP_PORT: 8080
+      API_TOKEN: secret
+      ZED_ENVIRONMENT: development
+      ZED_CLIENT_CHECKSUM_SEED: development-checksum-seed
+      SEED_PATH: /app/seed.default.json
+      BLOB_STORE_URL: http://blobstore:9000
+      BLOB_STORE_ACCESS_KEY: the-blob-store-access-key
+      BLOB_STORE_SECRET_KEY: the-blob-store-secret-key
+      BLOB_STORE_BUCKET: the-extensions-bucket
+      BLOB_STORE_REGION: us-east-1
+      LIVEKIT_SERVER: http://livekit:7880
+      LIVEKIT_KEY: devkey
+      LIVEKIT_SECRET: secret
+      RUST_LOG: info
+    volumes:
+      - ./crates/collab/seed.default.json:/app/seed.default.json:ro
+      - ./crates/collab/seed:/app/seed:ro
+    command: ["serve", "all"]
+
+volumes:
+  postgres_data:
