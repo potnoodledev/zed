@@ -135,6 +135,36 @@ To reset everything:
 docker compose --profile collab-server down -v
 ```
 
+## AFFiNE Auth Integration
+
+AFFiNE was added as an alternate authentication provider alongside GitHub. Users can sign in with either provider through a browser-based flow served by the collab server itself.
+
+See [affine-auth-integration.md](affine-auth-integration.md) for detailed issues and fixes.
+
+### Key changes
+
+- `github_user_id` is now nullable — AFFiNE users don't have one
+- Added `affine_user_id` column to the `users` table
+- Sign-in page at `/native_app_signin` shows buttons for each configured provider
+- AFFiNE uses two URLs: `AFFINE_URL` (server-to-server, Docker-internal) and `AFFINE_PUBLIC_URL` (browser-facing)
+- `SELF_URL` config tells collab its own public address for OAuth callback URLs
+- Empty env vars (e.g. `GITHUB_CLIENT_ID=`) are treated as unset, hiding unconfigured providers
+- Client falls back to collab RPC for user info when cloud service is unavailable
+
+### Auth configuration in compose.yml
+
+```yaml
+GITHUB_CLIENT_ID: ${GITHUB_CLIENT_ID:-}       # leave empty to disable GitHub auth
+GITHUB_CLIENT_SECRET: ${GITHUB_CLIENT_SECRET:-}
+AFFINE_URL: ${AFFINE_URL:-http://host.docker.internal:3010}  # server-to-server
+AFFINE_PUBLIC_URL: ${AFFINE_PUBLIC_URL:-http://localhost:3010} # browser-facing
+SELF_URL: ${SELF_URL:-http://localhost:8080}    # collab's own public URL
+```
+
+### AFFiNE user display
+
+AFFiNE users are stored with their email as `github_login` (e.g. `max@zed.dev`) since `github_login` is used as the display identifier throughout the codebase. The display name is derived from the AFFiNE profile name, falling back to the email prefix.
+
 ## LiveKit Public URL
 
 The collab server uses two LiveKit URLs:

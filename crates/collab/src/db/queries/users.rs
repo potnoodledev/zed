@@ -256,7 +256,7 @@ impl Database {
                 let display_name = name
                     .map(|n| n.to_string())
                     .unwrap_or_else(|| email.split('@').next().unwrap_or("user").to_string());
-                let github_login = format!("affine:{affine_user_id}");
+                let github_login = email.to_string();
                 let user = user::Entity::insert(user::ActiveModel {
                     email_address: ActiveValue::set(Some(email.into())),
                     name: ActiveValue::set(Some(display_name)),
