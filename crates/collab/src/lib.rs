@@ -121,6 +121,7 @@ pub struct Config {
     pub livekit_server: Option<String>,
     pub livekit_key: Option<String>,
     pub livekit_secret: Option<String>,
+    pub livekit_public_url: Option<String>,
     pub rust_log: Option<String>,
     pub log_json: Option<bool>,
     pub blob_store_url: Option<String>,
@@ -171,6 +172,7 @@ impl Config {
             livekit_server: None,
             livekit_key: None,
             livekit_secret: None,
+            livekit_public_url: None,
             rust_log: None,
             log_json: None,
             zed_environment: "test".into(),
@@ -239,6 +241,7 @@ impl AppState {
                 server.clone(),
                 key.clone(),
                 secret.clone(),
+                config.livekit_public_url.clone(),
             )) as Arc<dyn livekit_api::Client>)
         } else {
             None

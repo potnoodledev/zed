@@ -1318,7 +1318,7 @@ async fn create_room(
         let token = live_kit.room_token(&livekit_room, &user_id).trace_err()?;
 
         Some(proto::LiveKitConnectionInfo {
-            server_url: live_kit.url().into(),
+            server_url: live_kit.public_url().into(),
             token,
             can_publish: true,
         })
@@ -1389,7 +1389,7 @@ async fn join_room(
             )
             .trace_err()
             .map(|token| proto::LiveKitConnectionInfo {
-                server_url: live_kit.url().into(),
+                server_url: live_kit.public_url().into(),
                 token,
                 can_publish: true,
             })
@@ -3338,7 +3338,7 @@ async fn join_channel_internal(
                     };
 
                     Some(LiveKitConnectionInfo {
-                        server_url: live_kit.url().into(),
+                        server_url: live_kit.public_url().into(),
                         token,
                         can_publish,
                     })

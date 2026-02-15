@@ -10,6 +10,7 @@ use std::{future::Future, sync::Arc, time::Duration};
 #[async_trait]
 pub trait Client: Send + Sync {
     fn url(&self) -> &str;
+    fn public_url(&self) -> &str;
     async fn create_room(&self, name: String) -> Result<()>;
     async fn delete_room(&self, name: String) -> Result<()>;
     async fn remove_participant(&self, room: String, identity: String) -> Result<()>;
@@ -29,15 +30,31 @@ pub struct LiveKitParticipantUpdate {}
 pub struct LiveKitClient {
     http: reqwest::Client,
     url: Arc<str>,
+    public_url: Arc<str>,
     key: Arc<str>,
     secret: Arc<str>,
 }
 
 impl LiveKitClient {
-    pub fn new(mut url: String, key: String, secret: String) -> Self {
+    pub fn new(
+        mut url: String,
+        key: String,
+        secret: String,
+        public_url: Option<String>,
+    ) -> Self {
         if url.ends_with('/') {
             url.pop();
         }
+
+        let public_url: Arc<str> = match public_url {
+            Some(mut public) => {
+                if public.ends_with('/') {
+                    public.pop();
+                }
+                public.into()
+            }
+            None => Arc::clone(&Arc::from(url.as_str())),
+        };
 
         Self {
             http: reqwest::ClientBuilder::new()
@@ -45,6 +62,7 @@ impl LiveKitClient {
                 .build()
                 .unwrap(),
             url: url.into(),
+            public_url,
             key: key.into(),
             secret: secret.into(),
         }
@@ -94,6 +112,10 @@ impl LiveKitClient {
 impl Client for LiveKitClient {
     fn url(&self) -> &str {
         &self.url
+    }
+
+    fn public_url(&self) -> &str {
+        &self.public_url
     }
 
     async fn create_room(&self, name: String) -> Result<()> {

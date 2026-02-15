@@ -573,6 +573,10 @@ impl livekit_api::Client for TestApiClient {
         &self.url
     }
 
+    fn public_url(&self) -> &str {
+        &self.url
+    }
+
     async fn create_room(&self, name: String) -> Result<()> {
         let server = TestServer::get(&self.url)?;
         server.create_room(name).await?;

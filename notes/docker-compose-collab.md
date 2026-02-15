@@ -134,3 +134,75 @@ To reset everything:
 ```bash
 docker compose --profile collab-server down -v
 ```
+
+## LiveKit Public URL
+
+The collab server uses two LiveKit URLs:
+
+- `LIVEKIT_SERVER` (`http://livekit:7880`) — Docker-internal URL used by collab to call the LiveKit API (create/delete rooms, manage participants)
+- `LIVEKIT_PUBLIC_URL` (`http://localhost:7880`) — URL sent to Zed clients for WebRTC connections. Defaults to `http://localhost:7880` if not set.
+
+This follows the same pattern as AFFiNE (`AFFINE_URL` vs `AFFINE_PUBLIC_URL`).
+
+## Testing Audio
+
+### Prerequisites
+
+```bash
+pip install livekit livekit-api PyJWT numpy asyncpg
+```
+
+### Test script
+
+`script/test-livekit-audio.py` publishes a 440Hz sine wave into a channel's LiveKit room.
+
+```bash
+python script/test-livekit-audio.py --channel general
+python script/test-livekit-audio.py --room <room-name>  # skip DB lookup
+```
+
+### End-to-end audio test with two Zed instances
+
+1. Start the stack:
+   ```bash
+   docker compose --profile collab-server up --build -d
+   ```
+
+2. Run the first Zed instance:
+   ```bash
+   ZED_SERVER_URL=http://localhost:8080 cargo run -p zed
+   ```
+
+3. Run a second Zed instance as a different user:
+   ```bash
+   ZED_SERVER_URL=http://localhost:8080 \
+   ZED_IMPERSONATE=nathansobo \
+   ZED_ADMIN_API_TOKEN=secret \
+   cargo run -p zed -- --user-data-dir /tmp/zed-test-instance
+   ```
+
+4. Join the same channel in both instances.
+
+5. To inject a test tone instead of using a real mic, use GStreamer to create a PipeWire virtual source and wire it into one Zed instance:
+   ```bash
+   # Create a virtual mic playing a 440Hz tone
+   gst-launch-1.0 audiotestsrc freq=440 volume=0.5 ! \
+     audio/x-raw,format=S16LE,rate=48000,channels=1 ! \
+     pipewiresink stream-properties="props,media.class=Audio/Source,node.name=tone-source,node.description=ToneSource" &
+
+   # Disconnect one Zed from the builtin mic and connect to the tone source
+   pw-link -d alsa_input.pci-0000_e6_00.3.BuiltinMic:capture_AUX0 alsa_capture.zed:input_FL
+   pw-link -d alsa_input.pci-0000_e6_00.3.BuiltinMic:capture_AUX1 alsa_capture.zed:input_FR
+   pw-link tone-source:capture_MONO alsa_capture.zed:input_FL
+   pw-link tone-source:capture_MONO alsa_capture.zed:input_FR
+   ```
+
+6. The other Zed instance should hear the tone through its speakers.
+
+### Gotchas
+
+- The LiveKit Python SDK requires `ws://` URLs, not `http://`. The `livekit-api` package is separate from `livekit`.
+- Zed only plays audio from participants whose LiveKit identity is a numeric user ID matching a collab room participant. The test script alone (without a Zed instance in the room) won't produce audible output.
+- The `rooms` table holds `live_kit_room`, not the `channels` table. Look up rooms via: `SELECT r.live_kit_room FROM rooms r JOIN channels c ON c.id = r.channel_id WHERE c.name = 'channel-name'`.
+- When running two Zed dev builds, the single-instance check is skipped automatically. Use `--user-data-dir` to keep data separate.
+- The `ZED_IMPERSONATE` + `ZED_ADMIN_API_TOKEN` env vars allow signing in as any seeded user without OAuth.
